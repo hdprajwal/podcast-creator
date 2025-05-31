@@ -59,6 +59,11 @@ An AI-powered podcast creator that transforms your text into engaging educationa
 - `gemini-2.5-flash-preview-tts`
 - `gemini-2.5-pro-preview-tts`
 
+## Screenshot
+
+![Podcast Generator Screenshot](img/screenshot.png)
+
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
