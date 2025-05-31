@@ -46,6 +46,34 @@ API_KEY = st.text_input(
 )
 
 
+# Podcast customization
+st.subheader("🎙️ Podcast Settings")
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    podcast_style = st.selectbox(
+        "Podcast Style",
+        ["educational", "conversational", "storytelling",
+            "interview-style", "documentary"],
+        help="Choose the overall style and approach for your podcast"
+    )
+
+with col2:
+    target_duration = st.selectbox(
+        "Target Duration",
+        ["3-5 minutes", "5-8 minutes", "8-12 minutes", "12-15 minutes"],
+        index=1,
+        help="Approximate length of the final podcast"
+    )
+
+with col3:
+    target_audience = st.selectbox(
+        "Target Audience",
+        ["general", "beginners", "professionals", "students", "experts"],
+        help="Who is the primary audience for this podcast?"
+    )
+
+
 def validate_inputs(text_input, api_key):
     """Validate user inputs before processing"""
     errors = []
@@ -62,21 +90,24 @@ def validate_inputs(text_input, api_key):
     return errors
 
 
-def get_system_prompt(text_input):
+def get_system_prompt(text_input, podcast_style="educational", target_duration="5-8 minutes", target_audience="general"):
     """Generate system prompt for transcript creation"""
+    min_target_duration_minutes = int(target_duration.split()[0].split("-")[0])
+    max_target_duration_minutes = int(target_duration.split()[0].split("-")[1])
+    target_duration_words = min_target_duration_minutes * 100
     return f"""
 You are an expert podcast script writer specializing in creating engaging, educational audio content. Your task is to transform the provided text into a natural, conversational podcast transcript.
 
 **PODCAST SPECIFICATIONS:**
-- Style: Educational podcast
-- Target Duration: 5-8 minutes (approximately 800-1200 words)
-- Target Audience: General audience
+- Style: {podcast_style} podcast
+- Target Duration: {target_duration} (approximately {target_duration_words} words)
+- Target Audience: {target_audience} audience
 - Format: Single narrator speaking directly to listeners
 
 **SCRIPT STRUCTURE:**
 1. **Hook (30-45 seconds)**: Start with an intriguing question, surprising fact, or compelling statement that grabs attention about the topic
 2. **Introduction (30-60 seconds)**: Briefly introduce the topic and what listeners will learn
-3. **Main Content (3-5 minutes)**: Present the key information in 2-4 digestible segments with smooth transitions
+3. **Main Content ({min_target_duration_minutes - 2}-{max_target_duration_minutes -2} minutes)**: Present the key information in 2-4 digestible segments with smooth transitions
 4. **Conclusion (30-45 seconds)**: Summarize key takeaways and end with a thought-provoking statement
 
 **WRITING STYLE REQUIREMENTS:**
@@ -120,11 +151,13 @@ Transform this source material into an engaging podcast script:
 Remember: This will be converted to audio, so prioritize clarity, natural flow, and listener engagement over visual formatting."""
 
 
-def generate_transcript(text_input, api_key, model):
+def generate_transcript(text_input, api_key, model, podcast_style, target_duration, target_audience):
     """Generate transcript with error handling"""
     try:
         with st.spinner("🔄 Generating transcript..."):
-            formatted_prompt = get_system_prompt(text_input)
+            formatted_prompt = get_system_prompt(
+                text_input, podcast_style, target_duration, target_audience)
+            st.write(formatted_prompt)
             response = gu.get_text_response(api_key, model, formatted_prompt)
             return response.strip(), None
     except Exception as e:
@@ -195,7 +228,8 @@ generate_transcript_button = st.button(
 )
 
 if generate_transcript_button and not validation_errors:
-    transcript, error = generate_transcript(text_input, API_KEY, TEXT_MODEL)
+    transcript, error = generate_transcript(
+        text_input, API_KEY, TEXT_MODEL, podcast_style, target_duration, target_audience)
 
     if error:
         st.error(error)

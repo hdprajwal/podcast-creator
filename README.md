@@ -35,7 +35,7 @@ An AI-powered podcast creator that transforms your text into engaging educationa
 4. **Run the application**
 
    ```bash
-   streamlit run app.py   streamlit run app.py
+   streamlit run app.py
 
    ```
 
@@ -62,7 +62,6 @@ An AI-powered podcast creator that transforms your text into engaging educationa
 ## Screenshot
 
 ![Podcast Generator Screenshot](img/screenshot.png)
-
 
 ## License
 
