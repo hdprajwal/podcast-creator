@@ -65,24 +65,59 @@ def validate_inputs(text_input, api_key):
 def get_system_prompt(text_input):
     """Generate system prompt for transcript creation"""
     return f"""
-    You are a helpful assistant that generates a transcript for an educational video from a given text input.
-    The transcript should follow the following format:
-    [Tone: This is a transcript for an educational video, so choose the appropriate tone]
-    <text>
-    [Tone: adjust to the tone of the text]
-    <text>
-    [Tone: adjust to the tone of the text]
-    <text>
-    [Tone: adjust to the tone of the text]
+You are an expert podcast script writer specializing in creating engaging, educational audio content. Your task is to transform the provided text into a natural, conversational podcast transcript.
 
-    The Transcript should not use any markdown or html tags.
-    The Transcript should not use any special characters.
-    The Transcript should not use any emojis.
-    The Transcript should not include any details like the scene details or the speaker details.
+**PODCAST SPECIFICATIONS:**
+- Style: Educational podcast
+- Target Duration: 5-8 minutes (approximately 800-1200 words)
+- Target Audience: General audience
+- Format: Single narrator speaking directly to listeners
 
-    Generate the transcript for the following text:
-    {text_input}
-    """
+**SCRIPT STRUCTURE:**
+1. **Hook (30-45 seconds)**: Start with an intriguing question, surprising fact, or compelling statement that grabs attention about the topic
+2. **Introduction (30-60 seconds)**: Briefly introduce the topic and what listeners will learn
+3. **Main Content (3-5 minutes)**: Present the key information in 2-4 digestible segments with smooth transitions
+4. **Conclusion (30-45 seconds)**: Summarize key takeaways and end with a thought-provoking statement
+
+**WRITING STYLE REQUIREMENTS:**
+- Use conversational, natural language as if speaking to a friend
+- Include rhetorical questions to engage listeners
+- Add smooth transitions between topics ("Now that we've covered X, let's explore Y...")
+- Use analogies and examples to explain complex concepts
+- Include brief pauses indicated by natural sentence breaks
+- Vary sentence length for natural rhythm
+- Use active voice and present tense when possible
+
+**CONTENT GUIDELINES:**
+- Make complex ideas accessible without dumbing them down
+- Include specific examples or case studies when relevant
+- Add context for why this information matters to listeners
+- Build concepts progressively from simple to complex
+- Include actionable insights or takeaways
+
+**FORMATTING RULES:**
+- Write in plain text only (no markdown, HTML, or special characters)
+- Use standard punctuation for natural speech patterns
+- Do not include stage directions, speaker labels, or technical notes
+- Do not use ALL CAPS, emojis, or excessive punctuation
+- Write as a continuous script, not bullet points
+- Do not include scene directions, speaker labels, or technical notes
+- Do not include any audio/music/sound effects/background instructions.
+- Enclose all tone and voice instructions in [ and ] tags.
+
+**TONE AND VOICE:**
+- Enthusiastic but not overly excited
+- Authoritative yet approachable
+- Curious and engaging
+- Professional but conversational
+- Add Tone and voice instructions in the transcript.
+
+
+Transform this source material into an engaging podcast script:
+
+{text_input}
+
+Remember: This will be converted to audio, so prioritize clarity, natural flow, and listener engagement over visual formatting."""
 
 
 def generate_transcript(text_input, api_key, model):
