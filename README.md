@@ -2,6 +2,10 @@
 
 An AI-powered podcast creator that transforms your text into engaging educational podcasts using Google's Gemini AI models.
 
+## Live Demo [🔗](https://huggingface.co/spaces/hdprajwal/podcast-creator)
+
+[![Open in Spaces](https://huggingface.co/datasets/huggingface/badges/resolve/main/open-in-hf-spaces-md.svg)](https://huggingface.co/spaces/hdprajwal/podcast-creator)
+
 ## Setup
 
 ### Prerequisites
@@ -33,10 +37,16 @@ An AI-powered podcast creator that transforms your text into engaging educationa
    ```
 
 4. **Run the application**
+   1. Using Streamlit
 
    ```bash
-   streamlit run app.py
+      streamlit run streamlit_app.py
+   ```
 
+   2. Using Gradio
+
+   ```bash
+      gradio app.py
    ```
 
 ## Configuration
@@ -61,6 +71,10 @@ An AI-powered podcast creator that transforms your text into engaging educationa
 
 ## Screenshot
 
+Gradio App - Running on HF Spaces
+![Podcast Generator Screenshot HF](img/hf_screenshot.png)
+
+Streamlit App - Running Locally
 ![Podcast Generator Screenshot](img/screenshot.png)
 
 ## License
@@ -69,5 +83,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Acknowledgments
 
+- Built with [Gradio](https://gradio.app/) for hosting on HF Spaces
 - Built with [Streamlit](https://streamlit.io/) for the web interface
 - Powered by [Google Gemini AI](https://deepmind.google/technologies/gemini/) for text and audio generation
