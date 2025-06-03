@@ -1,77 +1,16 @@
-import streamlit as st
+import gradio as gr
+import tempfile
+import zipfile
+import os
 from pathlib import Path
+import json
 
 # Import with error handling
 try:
     import gemini_utils as gu
 except ImportError:
-    st.error(
-        "gemini_utils module not found. Please ensure it's installed and available.")
-    st.stop()
-
-st.title("🎙️ Podcast Generator")
-st.markdown("This is a playground to test a POC for a podcast generator.")
-
-# Initialize session state variables
-if 'transcript' not in st.session_state:
-    st.session_state.transcript = None
-if 'is_transcript_generated' not in st.session_state:
-    st.session_state.is_transcript_generated = False
-if 'generated_audio' not in st.session_state:
-    st.session_state.generated_audio = None
-
-# Configuration section
-st.subheader("⚙️ Configuration")
-col1, col2 = st.columns(2)
-
-with col1:
-    TEXT_MODEL = st.selectbox(
-        "Select the text model to use",
-        ["gemma-3n-e4b-it", "gemini-2.0-flash", "gemini-2.5-flash-preview-05-20"],
-        key="text_model"
-    )
-
-with col2:
-    AUDIO_MODEL = st.selectbox(
-        "Select the audio model to use",
-        ["gemini-2.5-flash-preview-tts", "gemini-2.5-pro-preview-tts"],
-        key="audio_model"
-    )
-
-API_KEY = st.text_input(
-    "🔑 Enter your Gemini API key",
-    type="password",
-    key="api_key",
-    help="Your API key is required to generate transcripts and audio"
-)
-
-
-# Podcast customization
-st.subheader("🎙️ Podcast Settings")
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    podcast_style = st.selectbox(
-        "Podcast Style",
-        ["educational", "conversational", "storytelling",
-            "interview-style", "documentary"],
-        help="Choose the overall style and approach for your podcast"
-    )
-
-with col2:
-    target_duration = st.selectbox(
-        "Target Duration",
-        ["3-5 minutes", "5-8 minutes", "8-12 minutes", "12-15 minutes"],
-        index=1,
-        help="Approximate length of the final podcast"
-    )
-
-with col3:
-    target_audience = st.selectbox(
-        "Target Audience",
-        ["general", "beginners", "professionals", "students", "experts"],
-        help="Who is the primary audience for this podcast?"
-    )
+    print("gemini_utils module not found. Please ensure it's installed and available.")
+    exit()
 
 
 def validate_inputs(text_input, api_key):
@@ -143,7 +82,6 @@ You are an expert podcast script writer specializing in creating engaging, educa
 - Professional but conversational
 - Add Tone and voice instructions in the transcript.
 
-
 Transform this source material into an engaging podcast script:
 
 {text_input}
@@ -151,129 +89,289 @@ Transform this source material into an engaging podcast script:
 Remember: This will be converted to audio, so prioritize clarity, natural flow, and listener engagement over visual formatting."""
 
 
-def generate_transcript(text_input, api_key, model, podcast_style, target_duration, target_audience):
+def generate_transcript(text_input, api_key, text_model, podcast_style, target_duration, target_audience):
     """Generate transcript with error handling"""
     try:
-        with st.spinner("🔄 Generating transcript..."):
-            formatted_prompt = get_system_prompt(
-                text_input, podcast_style, target_duration, target_audience)
-            st.write(formatted_prompt)
-            response = gu.get_text_response(api_key, model, formatted_prompt)
-            return response.strip(), None
+        # Validate inputs
+        errors = validate_inputs(text_input, api_key)
+        if errors:
+            return "\n".join([f"❌ {error}" for error in errors]), ""
+
+        # Generate system prompt
+        system_prompt = get_system_prompt(
+            text_input, podcast_style, target_duration, target_audience)
+
+        # Get transcript from Gemini
+        response = gu.get_text_response(api_key, text_model, system_prompt)
+
+        return "✅ Transcript generated successfully!", response.strip()
     except Exception as e:
-        return None, f"Error generating transcript: {str(e)}"
+        return f"❌ Error generating transcript: {str(e)}", ""
 
 
-def generate_podcast(transcript, api_key, model):
+def generate_audio(transcript, api_key, audio_model):
     """Generate podcast audio with error handling"""
     try:
-        with st.spinner("🎵 Generating podcast audio..."):
-            audio_data = gu.get_audio_response(api_key, model, transcript)
-            return audio_data, None
+        if not transcript or transcript.strip() == "":
+            return "❌ Transcript is empty. Please generate or enter a transcript first.", None
+
+        if not api_key or api_key.strip() == "":
+            return "❌ API key is required", None
+
+        # Generate audio from transcript
+        audio_data = gu.get_audio_response(api_key, audio_model, transcript)
+
+        if audio_data is None:
+            return "❌ Failed to generate audio", None
+
+        # Save audio to temporary file
+        temp_audio = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
+        temp_audio.write(audio_data)
+        temp_audio.close()
+
+        return "✅ Audio generated successfully!", temp_audio.name
     except Exception as e:
-        return None, f"Error generating podcast: {str(e)}"
+        return f"❌ Error generating audio: {str(e)}", None
 
 
-def save_binary_file(file_name, data):
-    """Save binary file with proper error handling"""
+def create_download_package(raw_text, system_prompt, transcript, audio_file):
+    """Create a zip file with all content for download"""
     try:
-        file_path = Path(file_name)
-        with open(file_path, "wb") as f:
-            f.write(data)
-        return str(file_path.absolute()), None
+        if not all([raw_text, transcript]):
+            return "❌ Missing required content for download package", None
+
+        # Create temporary directory
+        temp_dir = tempfile.mkdtemp()
+        zip_path = os.path.join(temp_dir, "podcast_package.zip")
+
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            # Add raw text
+            zipf.writestr("01_raw_text.txt", raw_text)
+
+            # Add system prompt if available
+            if system_prompt:
+                zipf.writestr("02_system_prompt.txt", system_prompt)
+
+            # Add transcript
+            zipf.writestr("03_transcript.txt", transcript)
+
+            # Add metadata
+            metadata = {
+                "generated_by": "Podcast Generator",
+                "content_type": "podcast_package",
+                "files": ["raw_text.txt", "system_prompt.txt", "transcript.txt"]
+            }
+
+            if audio_file and os.path.exists(audio_file):
+                # Copy audio file to zip
+                zipf.write(audio_file, "04_podcast_audio.wav")
+                metadata["files"].append("podcast_audio.wav")
+
+            zipf.writestr("metadata.json", json.dumps(metadata, indent=2))
+
+        return "✅ Download package created successfully!", zip_path
     except Exception as e:
-        return None, f"Error saving file: {str(e)}"
+        return f"❌ Error creating download package: {str(e)}", None
 
 
-def get_edited_transcript():
-    """Get edited transcript from text area"""
-    return st.text_area(
-        "📝 Edit the transcript",
-        height=200,
-        key="edited_transcript",
-        value=st.session_state.transcript if st.session_state.transcript else "",
-        help="You can edit the generated transcript before creating the podcast"
+def update_character_count(text):
+    """Update character count display"""
+    if text:
+        count = len(text)
+        return f"Characters: {count:,}/10,000"
+    return "Characters: 0/10,000"
+
+
+# Create the Gradio interface
+with gr.Blocks(title="🎙️ Podcast Generator", theme=gr.themes.Base()) as demo:
+    # Header
+    gr.Markdown("# 🎙️ Podcast Generator")
+    gr.Markdown(
+        "Transform your text into engaging podcast content with AI-generated transcripts and audio.")
+
+    # Configuration Section
+    with gr.Row():
+        gr.Markdown("## ⚙️ Configuration")
+
+    with gr.Accordion("Configuration"):
+        with gr.Row():
+            with gr.Column():
+                text_model = gr.Dropdown(
+                    choices=["gemma-3n-e4b-it", "gemini-2.0-flash",
+                             "gemini-2.5-flash-preview-05-20"],
+                    value="gemini-2.0-flash",
+                    label="Text Model",
+                    info="Select the model for transcript generation"
+                )
+
+            with gr.Column():
+                audio_model = gr.Dropdown(
+                    choices=["gemini-2.5-flash-preview-tts",
+                             "gemini-2.5-pro-preview-tts"],
+                    value="gemini-2.5-flash-preview-tts",
+                    label="Audio Model",
+                    info="Select the model for audio generation"
+                )
+
+        # API Key
+        api_key = gr.Textbox(
+            label="🔑 Gemini API Key",
+            type="password",
+            placeholder="Enter your Gemini API key here...",
+            info="Your API key is required for transcript and audio generation"
+        )
+
+    # Podcast Settings
+    with gr.Row():
+        gr.Markdown("## 🎙️ Podcast Settings")
+
+    with gr.Row():
+        with gr.Column():
+            podcast_style = gr.Dropdown(
+                choices=["educational", "conversational",
+                         "storytelling", "interview-style", "documentary"],
+                value="educational",
+                label="Podcast Style",
+                info="Choose the overall style and approach"
+            )
+
+        with gr.Column():
+            target_duration = gr.Dropdown(
+                choices=["3-5 minutes", "5-8 minutes",
+                         "8-12 minutes", "12-15 minutes"],
+                value="5-8 minutes",
+                label="Target Duration",
+                info="Approximate length of the final podcast"
+            )
+
+        with gr.Column():
+            target_audience = gr.Dropdown(
+                choices=["general", "beginners",
+                         "professionals", "students", "experts"],
+                value="general",
+                label="Target Audience",
+                info="Primary audience for this podcast"
+            )
+
+    # Input Text Section
+    with gr.Row():
+        gr.Markdown("## 📄 Input Text")
+
+    raw_text = gr.Textbox(
+        label="Raw Text Source",
+        placeholder="Enter the text you want to convert into a podcast...",
+        lines=8,
+        max_lines=15,
+        info="This text will be used to generate the podcast transcript",
     )
 
+    char_count = gr.Markdown("Characters: 0/10,000")
 
-# Main content section
-st.subheader("📄 Input Text")
-text_input = st.text_area(
-    "Enter your text here",
-    height=200,
-    key="text_input",
-    placeholder="Enter the text you want to convert into a podcast...",
-    help="This text will be used to generate an educational podcast transcript"
-)
+    # Update character count when text changes
+    raw_text.change(fn=update_character_count,
+                    inputs=raw_text, outputs=char_count)
 
-# Character count
-if text_input:
-    char_count = len(text_input)
-    st.caption(f"Characters: {char_count:,}/10,000")
+    # Transcript Generation
+    with gr.Row():
+        gr.Markdown("## 📋 Transcript Generation")
 
-# Generate transcript section
-st.subheader("📋 Transcript Generation")
+    with gr.Row():
+        generate_transcript_btn = gr.Button(
+            "🔄 Generate Transcript", variant="primary", size="lg")
 
-# Validate inputs before showing button
-validation_errors = validate_inputs(text_input, API_KEY)
+    transcript_status = gr.Markdown("")
 
-if validation_errors:
-    for error in validation_errors:
-        st.error(f"❌ {error}")
+    # Store system prompt for download package
+    system_prompt_state = gr.State("")
 
-generate_transcript_button = st.button(
-    "🔄 Generate Transcript",
-    disabled=bool(validation_errors),
-    help="Generate a podcast transcript from your input text"
-)
+    # Edit Transcript Section
+    with gr.Row():
+        gr.Markdown("## ✏️ Edit Transcript")
 
-if generate_transcript_button and not validation_errors:
-    transcript, error = generate_transcript(
-        text_input, API_KEY, TEXT_MODEL, podcast_style, target_duration, target_audience)
-
-    if error:
-        st.error(error)
-    else:
-        st.session_state.transcript = transcript
-        st.session_state.is_transcript_generated = True
-        st.success("✅ Transcript generated successfully!")
-
-# Show transcript editing section if transcript is generated
-if st.session_state.is_transcript_generated:
-    st.subheader("✏️ Edit Transcript")
-    edited_transcript = get_edited_transcript()
-
-    # Generate podcast section
-    st.subheader("🎙️ Podcast Generation")
-
-    if not edited_transcript.strip():
-        st.warning(
-            "⚠️ Transcript is empty. Please add content before generating podcast.")
-
-    generate_podcast_button = st.button(
-        "🎵 Generate Podcast",
-        disabled=not edited_transcript.strip(),
-        help="Generate audio podcast from the transcript"
+    transcript_editor = gr.Textbox(
+        label="Generated Transcript",
+        placeholder="Generated transcript will appear here. You can edit it before generating audio.",
+        lines=10,
+        max_lines=20,
+        info="Edit the transcript as needed before generating audio",
     )
 
-    if generate_podcast_button and edited_transcript.strip():
-        podcast_data, error = generate_podcast(
-            edited_transcript, API_KEY, AUDIO_MODEL)
+    # Audio Generation
+    with gr.Row():
+        gr.Markdown("## 🎙️ Audio Generation")
 
-        if error:
-            st.error(error)
-        else:
-            st.session_state.generated_audio = podcast_data
-            st.success("✅ Podcast generated successfully!")
+    with gr.Row():
+        generate_audio_btn = gr.Button(
+            "🎵 Generate Audio", variant="primary", size="lg")
 
-            # Audio playback
-            st.subheader("🔊 Listen to Your Podcast")
-            st.audio(podcast_data, format="audio/wav")
+    audio_status = gr.Markdown("")
 
-# Display existing audio if available
-elif st.session_state.generated_audio:
-    st.subheader("🔊 Your Generated Podcast")
-    st.audio(st.session_state.generated_audio, format="audio/wav")
+    # Audio Player
+    with gr.Row():
+        gr.Markdown("## 🔊 Audio Player")
 
-st.markdown("---")
-st.markdown("*Built with Streamlit and Gemini AI*")
+    audio_player = gr.Audio(
+        label="Generated Podcast Audio",
+        type="filepath",
+        interactive=False
+    )
+
+    # Download Section
+    with gr.Row():
+        gr.Markdown("## 📦 Download Package")
+
+    with gr.Row():
+        download_btn = gr.Button(
+            "📥 Create Download Package", variant="secondary", size="lg")
+
+    download_status = gr.Markdown("")
+    download_file = gr.File(label="Download Package", visible=False)
+
+    # Event handlers
+    def handle_transcript_generation(raw_text, api_key, text_model, podcast_style, target_duration, target_audience):
+        status, transcript = generate_transcript(
+            raw_text, api_key, text_model, podcast_style, target_duration, target_audience)
+        system_prompt = get_system_prompt(
+            raw_text, podcast_style, target_duration, target_audience) if transcript else ""
+        return status, transcript, system_prompt
+
+    def handle_audio_generation(transcript, api_key, audio_model):
+        status, audio_path = generate_audio(transcript, api_key, audio_model)
+        return status, audio_path
+
+    def handle_download_creation(raw_text, system_prompt, transcript, audio_file):
+        status, zip_path = create_download_package(
+            raw_text, system_prompt, transcript, audio_file)
+        if zip_path:
+            return status, gr.File(value=zip_path, visible=True)
+        return status, gr.File(visible=False)
+
+    # Connect event handlers
+    generate_transcript_btn.click(
+        fn=handle_transcript_generation,
+        inputs=[raw_text, api_key, text_model,
+                podcast_style, target_duration, target_audience],
+        outputs=[transcript_status, transcript_editor, system_prompt_state]
+    )
+
+    generate_audio_btn.click(
+        fn=handle_audio_generation,
+        inputs=[transcript_editor, api_key, audio_model],
+        outputs=[audio_status, audio_player]
+    )
+
+    download_btn.click(
+        fn=handle_download_creation,
+        inputs=[raw_text, system_prompt_state,
+                transcript_editor, audio_player],
+        outputs=[download_status, download_file]
+    )
+
+# Launch the app
+if __name__ == "__main__":
+    demo.launch(
+        share=False,
+        server_name="0.0.0.0",
+        server_port=7860,
+        show_api=False
+    )
